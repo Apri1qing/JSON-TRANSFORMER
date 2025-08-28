@@ -1,0 +1,83 @@
+{
+  "finalJsonTemplate": "{\"custom_data\":{\"channel_id\":1,\"game_id\":5,\"source_id\":9,\"version\":\"5.0.0\"},\"timestamp\":0,\"zone_offset\":8,\"payload\":[{\"data_type\":\"post\",\"data\":[]}]}",
+  "templateMappings": [
+    {
+      "targetPath": "$.timestamp",
+      "transformExpression": "@time:current"
+    },
+    {
+      "targetPath": "$.custom_data.channel_id",
+      "transformExpression": "10000",
+      "targetType": "long"
+    }
+  ],
+  "targetNodePath": "$.payload[0].data",
+  "targetJson": "{\"post_uuid\":\"\",\"user_name\":\"\",\"title\":\"\",\"content\":\"\",\"publish_time\":\"\",\"extras\":{\"note_url\":\"\",\"user_link\":\"\",\"user_avatar\":\"\",\"tieba_name\":\"\",\"tieba_link\":\"\",\"total_replay_num\":0,\"total_replay_page\":0,\"ip_location\":\"\",\"source_keyword\":\"\",\"last_modify_ts\":0}}",
+  "mappings": [
+    {
+      "sourcePath": "$.note_id",
+      "targetPath": "$.post_uuid"
+    },
+    {
+      "sourcePath": "$.user_nickname",
+      "targetPath": "$.user_name"
+    },
+    {
+      "sourcePath": "$.title",
+      "targetPath": "$.title"
+    },
+    {
+      "sourcePath": "$.desc",
+      "targetPath": "$.content"
+    },
+    {
+      "sourcePath": "$.publish_time",
+      "targetPath": "$.publish_time"
+    },
+    {
+      "sourcePath": "$.note_url",
+      "targetPath": "$.extras.note_url"
+    },
+    {
+      "sourcePath": "$.user_link",
+      "targetPath": "$.extras.user_link"
+    },
+    {
+      "sourcePath": "$.user_avatar",
+      "targetPath": "$.extras.user_avatar"
+    },
+    {
+      "sourcePath": "$.tieba_name",
+      "targetPath": "$.extras.tieba_name"
+    },
+    {
+      "sourcePath": "$.tieba_link",
+      "targetPath": "$.extras.tieba_link"
+    },
+    {
+      "sourcePath": "$.total_replay_num",
+      "targetPath": "$.extras.total_replay_num",
+      "targetType": "int"
+    },
+    {
+      "sourcePath": "$.total_replay_page",
+      "targetPath": "$.extras.total_replay_page",
+      "targetType": "int"
+    },
+    {
+      "sourcePath": "$.ip_location",
+      "targetPath": "$.extras.ip_location",
+      "transformExpression": "\"IP:\" + value"
+    },
+    {
+      "sourcePath": "$.source_keyword",
+      "targetPath": "$.extras.source_keyword",
+      "targetType": "string"
+    },
+    {
+      "sourcePath": "$.last_modify_ts",
+      "targetPath": "$.extras.last_modify_ts",
+      "transformExpression": "@time:yyyy-MM-dd HH:mm:ss"
+    }
+  ]
+}
