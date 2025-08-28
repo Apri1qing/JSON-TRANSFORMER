@@ -26,11 +26,11 @@ public class JsonTransformerDemo {
     public static void main(String[] args) {
         try {
             // 1. 读取配置文件
-            String configPath = "/Users/april/Documents/working/happy-webhook/json-transformer-test/tieba_test_template.json";
+            String configPath = "/Users/april/Documents/working/JSON-TRANSFORMER/json-transformer-demo/tieba_test_template.json";
             String configJson = new String(Files.readAllBytes(Paths.get(configPath)));
 
             // 2. 读取测试数据
-            String dataPath = "/Users/april/Documents/working/happy-webhook/json-transformer-test/tieba_test_data.json";
+            String dataPath = "/Users/april/Documents/working/JSON-TRANSFORMER/json-transformer-demo/tieba_test_data_array.json";
             String sourceJson = new String(Files.readAllBytes(Paths.get(dataPath)));
 
             // 3. 解析配置

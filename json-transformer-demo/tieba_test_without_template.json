@@ -1,13 +1,6 @@
 {
-  "finalJsonTemplate": "[{\"data\":[]}]",
-  "targetNodePath": "$[0].data",
   "targetJson": "{\"post_uuid\":\"\",\"user_name\":\"\",\"title\":\"\",\"content\":\"\",\"publish_time\":\"\",\"extras\":{\"note_url\":\"\",\"user_link\":\"\",\"user_avatar\":\"\",\"tieba_name\":\"\",\"tieba_link\":\"\",\"total_replay_num\":0,\"total_replay_page\":0,\"ip_location\":\"\",\"source_keyword\":\"\",\"last_modify_ts\":0}}",
   "mappings": [
-    {
-      "sourcePath": "$.note_id",
-      "targetPath": "$.post_uuid",
-      "targetType": "string"
-    },
     {
       "sourcePath": "$.user_nickname",
       "targetPath": "$.user_name",

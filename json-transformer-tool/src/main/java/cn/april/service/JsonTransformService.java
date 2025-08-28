@@ -181,10 +181,26 @@ public class JsonTransformService {
      * 转换JSON
      */
     public JsonNode transform(String sourceJson) throws JsonProcessingException {
-        // 1. 解析源JSON和目标模板
+        // 1. 解析源JSON
         JsonNode sourceData = objectMapper.readTree(sourceJson);
+        
+        // 2. 检查是否有finalJsonTemplate
+        if (transformConfig.getFinalJsonTemplate() != null && !transformConfig.getFinalJsonTemplate().trim().isEmpty()) {
+            // 有模板的情况：基于模板进行转换
+            return transformWithTemplate(sourceData);
+        } else {
+            // 无模板的情况：直接按照mapping规则转换
+            return transformWithoutTemplate(sourceData);
+        }
+    }
+    
+    /**
+     * 基于模板的转换
+     */
+    private JsonNode transformWithTemplate(JsonNode sourceData) throws JsonProcessingException {
+        // 1. 解析目标模板
         JsonNode template = objectMapper.readTree(transformConfig.getFinalJsonTemplate());
-
+        
         // 2. 创建结果JSON
         JsonNode result = template.deepCopy();
 
@@ -202,6 +218,21 @@ public class JsonTransformService {
         processSourceDataToTemplate(sourceData, result, transformConfig);
 
         return result;
+    }
+    
+    /**
+     * 无模板的直接转换
+     */
+    private JsonNode transformWithoutTemplate(JsonNode sourceData) {
+        if (sourceData.isArray()) {
+            // 源数据是数组：转换每个元素
+            List<ObjectNode> transformedObjects = transformArray(sourceData, transformConfig);
+            return objectMapper.valueToTree(transformedObjects);
+        } else {
+            // 源数据是对象：直接转换
+            ObjectNode transformed = transformSingleObject(sourceData, transformConfig);
+            return transformed != null ? transformed : objectMapper.createObjectNode();
+        }
     }
 
     /**
