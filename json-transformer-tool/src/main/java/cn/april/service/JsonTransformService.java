@@ -132,9 +132,19 @@ public class JsonTransformService {
         for (FieldMapping mapping : mappings) {
             String expression = mapping.getTransformExpression();
             if (expression != null && !specialExpressionManager.isSpecialExpression(expression)) {
+                // 所有表达式都进行预编译，包括包含JSONPath的表达式
                 precompileExpression(expression);
             }
         }
+    }
+
+    /**
+     * 检查表达式是否包含JSONPath
+     */
+    private boolean containsJsonPath(String expression) {
+        if (expression == null) return false;
+        // 检查是否包含 $. 模式
+        return expression.contains("$.");
     }
     
     /**
@@ -170,11 +180,42 @@ public class JsonTransformService {
         }
         
         try {
-            Script script = groovyShell.parse(expression);
-            compiledExpressions.put(expression, script);
+            if (containsJsonPath(expression)) {
+                // 对于包含JSONPath的表达式，将JSONPath替换为简单占位符后预编译
+                // 类似于value的处理方式：预编译时用占位符，执行时替换
+                String placeholderExpression = replaceJsonPathWithSimplePlaceholder(expression);
+                Script script = groovyShell.parse(placeholderExpression);
+                compiledExpressions.put(expression, script);
+                log.info("预编译包含JSONPath的表达式: {} -> {}", expression, placeholderExpression);
+            } else {
+                // 普通表达式直接预编译
+                Script script = groovyShell.parse(expression);
+                compiledExpressions.put(expression, script);
+            }
         } catch (Exception e) {
             throw new RuntimeException("表达式预编译失败: " + expression, e);
         }
+    }
+
+    /**
+     * 将JSONPath替换为简单占位符（类似value的处理方式）
+     */
+    private String replaceJsonPathWithSimplePlaceholder(String expression) {
+        // 将JSONPath替换为简单变量名，这样预编译时语法正确
+        // 执行时通过替换字符串来处理，类似于value的方式
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\$\\.[^\\s\"']+");
+        java.util.regex.Matcher matcher = pattern.matcher(expression);
+        
+        StringBuffer result = new StringBuffer();
+        int index = 0;
+        while (matcher.find()) {
+            // 将每个JSONPath替换为一个简单的变量名
+            matcher.appendReplacement(result, "jsonpath" + index);
+            index++;
+        }
+        matcher.appendTail(result);
+        
+        return result.toString();
     }
     
     /**
@@ -392,7 +433,7 @@ public class JsonTransformService {
 
                 // 应用转换表达式（必须的）
                 if (transformExpression != null && !transformExpression.trim().isEmpty()) {
-                    finalValue = evaluateExpression(transformExpression, finalValue);
+                    finalValue = evaluateExpression(transformExpression, finalValue, sourceObject);
                 } else {
                     // 如果没有transformExpression，必须有sourcePath
                     if (sourcePath == null || sourcePath.trim().isEmpty()) {
@@ -486,6 +527,13 @@ public class JsonTransformService {
      * 执行Groovy表达式
      */
     private Object evaluateExpression(String expression, Object value) {
+        return evaluateExpression(expression, value, null);
+    }
+
+    /**
+     * 执行Groovy表达式（支持JSONPath）
+     */
+    private Object evaluateExpression(String expression, Object value, JsonNode sourceData) {
         try {
             // 如果没有表达式，返回原值
             if (expression == null || expression.trim().isEmpty()) {
@@ -498,33 +546,82 @@ public class JsonTransformService {
                 return specialResult;
             }
 
-            // 原有的 Groovy 表达式处理逻辑
-            Script script = compiledExpressions.get(expression);
-            if (script == null) {
-                log.warn("表达式未预编译，动态编译: {}", expression);
-                script = groovyShell.parse(expression);
-                compiledExpressions.put(expression, script);
-            }
+            // 处理表达式中的占位符
+            String finalExpression = processExpressionPlaceholders(expression, value, sourceData);
 
-            // 如果有value，将其嵌入到表达式中
-            String finalExpression;
-            if (value != null) {
-                String valueStr = extractValueAsString(value);
-                finalExpression = expression.replace(VALUE_PLACEHOLDER, valueStr);
+            // 执行表达式
+            if (containsJsonPath(expression)) {
+                // 包含JSONPath的表达式：预编译主要用于语法验证，执行时仍用动态编译
+                // 这样保持简洁性，类似于value的处理方式
+                return groovyShell.evaluate(finalExpression);
             } else {
-                // 如果value是null，将"value"替换为"null"
-                finalExpression = expression.replace(VALUE_PLACEHOLDER, NULL_STRING);
+                // 普通表达式：优先使用预编译的脚本
+                Script script = compiledExpressions.get(expression);
+                if (script == null) {
+                    log.warn("表达式未预编译，动态编译: {}", expression);
+                    return groovyShell.evaluate(finalExpression);
+                } else {
+                    // 普通表达式可以直接使用预编译的脚本执行
+                    return script.run();
+                }
             }
-
-            // 执行预编译的表达式
-            Object result = groovyShell.evaluate(finalExpression);
-            return result;
 
         } catch (Exception e) {
             log.warn("表达式执行失败: {}, 错误: {}", expression, e.getMessage());
             return value;
         }
     }
+
+    /**
+     * 处理表达式中的占位符（value和JSONPath）
+     */
+    private String processExpressionPlaceholders(String expression, Object value, JsonNode sourceData) {
+        String finalExpression = expression;
+
+        // 1. 处理value占位符
+        if (value != null) {
+            String valueStr = extractValueAsString(value);
+            finalExpression = finalExpression.replace(VALUE_PLACEHOLDER, valueStr);
+        } else {
+            // 如果value是null，将"value"替换为"null"
+            finalExpression = finalExpression.replace(VALUE_PLACEHOLDER, NULL_STRING);
+        }
+
+        // 2. 处理JSONPath占位符（如果提供了源数据）
+        if (sourceData != null) {
+            finalExpression = processJsonPathPlaceholders(finalExpression, sourceData);
+        }
+
+        return finalExpression;
+    }
+
+    /**
+     * 处理表达式中的JSONPath占位符
+     */
+    private String processJsonPathPlaceholders(String expression, JsonNode sourceData) {
+        // 简单直接地处理JSONPath，类似于value的处理方式
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\$\\.[^\\s\"']+");
+        java.util.regex.Matcher matcher = pattern.matcher(expression);
+        
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String jsonPath = matcher.group();
+            try {
+                // 从源数据中获取JSONPath对应的值
+                Object pathValue = pathNavigator.readValue(sourceData, jsonPath);
+                String pathValueStr = extractValueAsString(pathValue);
+                matcher.appendReplacement(result, pathValueStr);
+            } catch (Exception e) {
+                log.warn("JSONPath解析失败: {}, 错误: {}", jsonPath, e.getMessage());
+                // 如果解析失败，替换为null
+                matcher.appendReplacement(result, "null");
+            }
+        }
+        matcher.appendTail(result);
+        
+        return result.toString();
+    }
+
 
     /**
      * 根据嵌套路径设置值（使用JsonPathNavigator）

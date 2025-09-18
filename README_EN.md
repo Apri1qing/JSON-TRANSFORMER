@@ -53,14 +53,21 @@ import cn.april.model.FieldMapping;
 import cn.april.service.JsonTransformService;
 import com.fasterxml.jackson.databind.JsonNode;
 
-// Create transformation configuration
-TransformConfig config = new TransformConfig();
-// ... configure transformation rules
+// 1. read the config file
+String configPath = "/path/tieba_test_template.json";
+String configJson = new String(Files.readAllBytes(Paths.get(configPath)));
 
-// Create transformation service
+// 2. parse the config
+ObjectMapper mapper = new ObjectMapper();
+Map<String, Object> configMap = mapper.readValue(configJson, new TypeReference<Map<String, Object>>() {});
+
+// 3. Create a TransformConfig instance
+TransformConfig config = createTransformConfig(configMap);
+
+// 4. Initialize the JsonTransformService
 JsonTransformService transformer = new JsonTransformService(config);
 
-// Execute transformation
+// 5. execute
 String sourceJson = "...";
 JsonNode result = transformer.transform(sourceJson);
 ```
@@ -157,48 +164,45 @@ Different transformation needs require different configuration approaches:
 
 The most basic usage is direct field mapping without transformation:
 
-```java
-FieldMapping mapping = new FieldMapping(
-    "$.user.name",           // Source path
-    "$.username",            // Target path
-    null,                    // No transformation expression
-    "string"                 // Target type
-);
+```json
+{
+  "sourcePath": "$.user.name",
+  "targetPath": "$.username",
+  "targetType": "string"
+}
 ```
 
 ### 2. Using Transformation Expressions
 
 Supports Groovy expressions and special expressions:
-
-```java
-// Groovy expression
-FieldMapping mapping = new FieldMapping(
-    "$.ip_location",
-    "$.extras.ip_location",
-    "\"IP:\" + value",      // Add prefix before IP
-    "string"
-);
-
-// Special expression (time handling)
-FieldMapping mapping = new FieldMapping(
-    "$.last_modify_ts",
-    "$.extras.last_modify_ts",
-    "@time:yyyy-MM-dd HH:mm:ss",  // Time formatting
-    "string"
-);
+```json
+// Groovy表达式
+{
+  "sourcePath": "$.ip_location",
+  "targetPath": "$.extras.ip_location",
+  "transformExpression": "\"IP:\" + value", // Add prefix before IP
+  "targetType": "string"
+}
+```
+```json
+// 特殊表达式（时间处理）
+{
+  "sourcePath": "$.last_modify_ts",
+  "targetPath": "$.extras.last_modify_ts",
+  "transformExpression": "@time:yyyy-MM-dd HH:mm:ss", // Time formatting
+  "targetType": "string"
+}
 ```
 
 ### 3. Type Conversion
 
 Automatic type conversion support:
-
-```java
-FieldMapping mapping = new FieldMapping(
-    "$.total_replay_num",
-    "$.extras.total_replay_num",
-    null,
-    "int"                   // Automatically convert to integer type
-);
+```json
+{
+  "sourcePath": "$.total_replay_num",
+  "targetPath": "$.extras.total_replay_num",
+  "targetType": "int" // Automatically convert to integer type
+}
 ```
 
 ### 4. Template System
@@ -216,22 +220,19 @@ Defines the overall JSON structure after transformation:
 #### Template Field Transformation (templateMappings)
 
 Handles static fields in templates:
-
-```java
-List<FieldMapping> templateMappings = Arrays.asList(
-    new FieldMapping(
-        null,
-        "$.timestamp",
-        "@time:current",     // Set current timestamp
-        "long"
-    ),
-    new FieldMapping(
-        null,
-        "$.custom_data.channel_id",
-        "10000",            // Set fixed value
-        "long"
-    )
-);
+```json
+[
+    {
+      "targetPath": "$.timestamp",
+      "transformExpression": "@time:current", // Set current timestamp
+      "targetType": "long"
+    },
+    {
+      "targetPath": "$.custom_data.channel_id",
+      "transformExpression": "10000", // Set fixed value
+      "targetType": "long"
+    }
+]
 ```
 
 #### Target Object Template (targetJson)
@@ -314,6 +315,21 @@ Supports all valid Groovy expressions, such as:
 - `value.toUpperCase()` - String to uppercase
 - `value ? "Has value" : "No value"` - Conditional judgment
 
+### JSONPath Support
+
+In `transformExpression`, besides using `value` to reference the field value specified by `sourcePath`, you can also **directly use JSONPath syntax to access any field in the source JSON**.
+
+#### Basic Usage
+
+Example: When transforming ip_location field, you can access other fields in source JSON
+```json
+{
+    "sourcePath": "$.ip_location",
+        "targetPath": "$.extras.ip_location",
+        "transformExpression": "$.note_id == null ? value : $.note_id"
+}
+```
+
 ## Time Expressions (@time:)
 Additionally, for convenient time type expressions, a special fixed time expression starting with `@time:` is added, supporting the following formats:
 
@@ -336,30 +352,29 @@ Additionally, for convenient time type expressions, a special fixed time express
 - Second-level timestamp: ≤ 1000000000000L
 
 **Usage Examples**:
-```java
+```json
 // Set current timestamp
-FieldMapping mapping = new FieldMapping(
-    null,
-    "$.timestamp",
-    "@time:current",        // Generate current millisecond timestamp
-    "long"
-);
-
+{
+  "targetPath": "$.timestamp",
+  "transformExpression":  "@time:current" // Generate current millisecond timestamp
+}
+```
+```json
 // Format timestamp to readable format
-FieldMapping mapping = new FieldMapping(
-    "$.last_modify_ts",
-    "$.formatted_time",
-    "@time:yyyy-MM-dd HH:mm:ss",  // Format time
-    "string"
-);
-
+{
+  "sourcePath": "$.last_modify_ts",
+  "targetPath":  "$.formatted_time",
+  "transformExpression": "@time:yyyy-MM-dd HH:mm:ss", // Generate current second timestamp
+  "targetType": "string"
+}
+```
+```json
 // Generate second-level timestamp
-FieldMapping mapping = new FieldMapping(
-    null,
-    "$.create_time",
-    "@time:current:s",      // Generate current second timestamp
-    "long"
-);
+{
+  "targetPath":  "$.create_time",
+  "transformExpression": "@time:current:s", // Generate current second timestamp
+  "targetType": "long"
+}
 ```
 
 ## Supported Type Conversions

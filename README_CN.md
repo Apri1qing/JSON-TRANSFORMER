@@ -52,14 +52,21 @@ import cn.april.model.FieldMapping;
 import cn.april.service.JsonTransformService;
 import com.fasterxml.jackson.databind.JsonNode;
 
-// 创建转换配置
-TransformConfig config = new TransformConfig();
-// ... 配置转换规则
+// 1. 配置转换规则 读取配置文件
+String configPath = "/path/tieba_test_template.json";
+String configJson = new String(Files.readAllBytes(Paths.get(configPath)));
 
-// 创建转换服务
+// 2. 解析配置
+ObjectMapper mapper = new ObjectMapper();
+Map<String, Object> configMap = mapper.readValue(configJson, new TypeReference<Map<String, Object>>() {});
+
+// 3. 创建TransformConfig对象
+TransformConfig config = createTransformConfig(configMap);
+
+// 4. 创建JsonTransformService实例
 JsonTransformService transformer = new JsonTransformService(config);
 
-// 执行转换
+// 5. 执行转换
 String sourceJson = "...";
 JsonNode result = transformer.transform(sourceJson);
 ```
@@ -155,49 +162,45 @@ public class FieldMapping {
 ### 1. 简单字段映射
 
 最基本的用法是直接映射字段，无需转换：
-
-```java
-FieldMapping mapping = new FieldMapping(
-    "$.user.name",           // 源路径
-    "$.username",            // 目标路径
-    null,                    // 无转换表达式
-    "string"                 // 目标类型
-);
+```json
+{
+  "sourcePath": "$.user.name",
+  "targetPath": "$.username",
+  "targetType": "string"
+}
 ```
 
 ### 2. 使用转换表达式
 
 支持Groovy表达式和特殊表达式：
-
-```java
+```json
 // Groovy表达式
-FieldMapping mapping = new FieldMapping(
-    "$.ip_location",
-    "$.extras.ip_location",
-    "\"IP:\" + value",      // 在IP前添加前缀
-    "string"
-);
-
+{
+  "sourcePath": "$.ip_location",
+  "targetPath": "$.extras.ip_location",
+  "transformExpression": "\"IP:\" + value", // 在IP前添加前缀
+  "targetType": "string"
+}
+```
+```json
 // 特殊表达式（时间处理）
-FieldMapping mapping = new FieldMapping(
-    "$.last_modify_ts",
-    "$.extras.last_modify_ts",
-    "@time:yyyy-MM-dd HH:mm:ss",  // 时间格式化
-    "string"
-);
+{
+  "sourcePath": "$.last_modify_ts",
+  "targetPath": "$.extras.last_modify_ts",
+  "transformExpression": "@time:yyyy-MM-dd HH:mm:ss", // 时间格式化
+  "targetType": "string"
+}
 ```
 
 ### 3. 类型转换
 
 自动类型转换支持：
-
-```java
-FieldMapping mapping = new FieldMapping(
-    "$.total_replay_num",
-    "$.extras.total_replay_num",
-    null,
-    "int"                   // 自动转换为整数类型
-);
+```json
+{
+  "sourcePath": "$.total_replay_num",
+  "targetPath": "$.extras.total_replay_num",
+  "targetType": "int" // 自动转换为整数类型
+}
 ```
 
 ### 4. 模板系统
@@ -215,22 +218,19 @@ FieldMapping mapping = new FieldMapping(
 #### 模板字段转换 (templateMappings)
 
 处理模板中的静态字段：
-
-```java
-List<FieldMapping> templateMappings = Arrays.asList(
-    new FieldMapping(
-        null,
-        "$.timestamp",
-        "@time:current",     // 设置当前时间戳
-        "long"
-    ),
-    new FieldMapping(
-        null,
-        "$.custom_data.channel_id",
-        "10000",            // 设置固定值
-        "long"
-    )
-);
+```json
+[
+    {
+      "targetPath": "$.timestamp",
+      "transformExpression": "@time:current", // 设置当前时间戳
+      "targetType": "long"
+    },
+    {
+      "targetPath": "$.custom_data.channel_id",
+      "transformExpression": "10000", // 设置固定值
+      "targetType": "long"
+    }
+]
 ```
 
 #### 目标对象模板 (targetJson)
@@ -313,6 +313,20 @@ config.setTargetNodePath("$.payload[0].data");
 - `value.toUpperCase()` - 字符串转大写
 - `value ? "有值" : "无值"` - 条件判断
 
+### JSONPath支持
+
+在`transformExpression`中，除了可以使用`value`来引用`sourcePath`指定的字段值外，还可以**直接使用JSONPath语法访问源JSON中的任意字段**。
+
+#### 基本用法
+示例：在转换ip_location字段时，可以访问源JSON中的其他字段
+```json
+    {
+      "sourcePath": "$.ip_location",
+      "targetPath": "$.extras.ip_location",
+      "transformExpression": "$.note_id == null ? value : $.note_id"
+    }
+```
+
 ## 时间表达式 (@time:)
 同时，为了方便时间类型的表达式，增加了一种特殊的固定时间表达式，以 `@time:` 开头，支持以下格式：
 
@@ -335,30 +349,29 @@ config.setTargetNodePath("$.payload[0].data");
 - 秒级时间戳：≤ 1000000000000L
 
 **使用示例**：
-```java
+```json
 // 设置当前时间戳
-FieldMapping mapping = new FieldMapping(
-    null,
-    "$.timestamp",
-    "@time:current",        // 生成当前毫秒时间戳
-    "long"
-);
-
+{
+  "targetPath": "$.timestamp",
+  "transformExpression":  "@time:current" // 生成当前毫秒时间戳
+}
+```
+```json
 // 格式化时间戳为可读格式
-FieldMapping mapping = new FieldMapping(
-    "$.last_modify_ts",
-    "$.formatted_time",
-    "@time:yyyy-MM-dd HH:mm:ss",  // 格式化时间
-    "string"
-);
-
+{
+  "sourcePath": "$.last_modify_ts",
+  "targetPath":  "$.formatted_time",
+  "transformExpression": "@time:yyyy-MM-dd HH:mm:ss", // 格式化时间
+  "targetType": "string"
+}
+```
+```json
 // 生成秒级时间戳
-FieldMapping mapping = new FieldMapping(
-    null,
-    "$.create_time",
-    "@time:current:s",      // 生成当前秒时间戳
-    "long"
-);
+{
+  "targetPath":  "$.create_time",
+  "transformExpression": "@time:current:s", //生成当前秒时间戳
+  "targetType": "long"
+}
 ```
 
 ## 支持的类型转换
