@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.util.logging.Slf4j;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -26,12 +28,12 @@ public class JsonTransformerDemo {
     public static void main(String[] args) {
         try {
             // 1. 读取配置文件
-            String configPath = "/Users/april/Documents/working/JSON-TRANSFORMER/json-transformer-demo/tieba_test_template.json";
-            String configJson = new String(Files.readAllBytes(Paths.get(configPath)));
+            InputStream configFile = JsonTransformerDemo.class.getClassLoader().getResourceAsStream("tieba_test_template.json");
+            String configJson = new String(configFile.readAllBytes(), StandardCharsets.UTF_8);
 
             // 2. 读取测试数据
-            String dataPath = "/Users/april/Documents/working/JSON-TRANSFORMER/json-transformer-demo/tieba_test_data_array.json";
-            String sourceJson = new String(Files.readAllBytes(Paths.get(dataPath)));
+            InputStream dataPath = JsonTransformerDemo.class.getClassLoader().getResourceAsStream("tieba_test_data_array.json");
+            String sourceJson = new String(dataPath.readAllBytes(), StandardCharsets.UTF_8);
 
             // 3. 解析配置
             ObjectMapper mapper = new ObjectMapper();

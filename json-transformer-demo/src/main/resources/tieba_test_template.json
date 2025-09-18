@@ -67,7 +67,7 @@
     {
       "sourcePath": "$.ip_location",
       "targetPath": "$.extras.ip_location",
-      "transformExpression": "\"IP:\" + value"
+      "transformExpression": "$.note_id == null ? value : $.note_id"
     },
     {
       "sourcePath": "$.source_keyword",
